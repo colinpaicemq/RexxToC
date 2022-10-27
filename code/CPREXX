@@ -1,0 +1,16 @@
+/* REXX */
+ZDROP="COLINDROP"
+ZZZZZ="!234567890123456"
+apple = 'COX'
+x.1 = "x1Val"
+x.2 = "x2Val"
+x.4 = "x4Val"
+x.apple  = "xCOX.appl"
+trace r
+p2 = "P2VALUE"
+address linkpgm COLIN "X.   P2"
+
+v =  COLIN("X.","P2")
+say "ZDROP:" ZDROP
+say RC v
+say CPPUT

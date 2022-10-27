@@ -1,0 +1,40 @@
+char * GetPKIRC(int safrc,int racfrc,int racfrs)
+{
+  typedef struct  PKIRC{
+  int safrc;
+  int racfrc;
+  int racfrs;
+  char * reason;
+  } PKIRC;
+  PKIRC qr[]=
+  {
+  {0,0,0,"Successful"},
+  {4,0,0,"RACF not installed"},
+  {8,8,4,"Parm list errror  "},
+  {8,8,8,"Not authorised    "},
+  {8,8,12,"Internal error     "},
+  {8,8,16,"Cant get recovery  "},
+  {8,8,20,"Function code not defined "},
+  {8,8,24,"Parmlist not supported    "},
+  {8,8,28,"Certificate Gen not available"},
+  {8,8,32,"CA_Domain error              "},
+  {8,8,32,"CA_Domain error              "},
+  //  function specific
+  {8,8,40,"Results area missing         "},
+  {8,8,44,"Results area too small       "},
+  {8,8,48,"Incorrect certid             "},
+  {8,8,56,"Incorrect status             "},
+  {8,8,60,"No requests available        "},
+  };
+  int size = sizeof(qr)/sizeof(qr[0]);
+  int i;
+  for (i = 0;i < size;i++)
+  {
+   if (  qr[i].safrc == safrc
+       &&qr[i].racfrc == racfrc
+       &&qr[i].racfrs == racfrs
+      ) return qr[i].reason;
+  }
+  printf("%i %i %i not found\n",safrc,racfrc,racfrs);
+  return "Unknown";
+}

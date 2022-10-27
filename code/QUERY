@@ -1,0 +1,276 @@
+#pragma environment(CTOREXX)
+#pragma linkage(OSFUNC,OS)
+#pragma csect (CODE, "CTOREXXC")
+#include <string.h>
+#include <stdio.h>
+typedef int OSFUNC();
+// rexx includes
+#include <CREXGET>
+#include <CREXPUT>
+#include <CREXNEXT>
+#include <CREXDROP>
+// make a null terminated string from the parameters
+char * makeString( char *,int );
+char * GetPKIRC(int, int, int);
+int  CTOREXX(rexParms * p  ,  evalblock * pEval, ENVBLOCK *pEnv )
+{
+  int rc = 0;
+
+  int i;
+  int status= 0;
+  char certId[57];                // needs to be 57 even though
+                                  //  input is 24 long
+  memset(&certId[0],0,sizeof(certId));
+  int numEntries = 10;
+
+  rexParms * p2 = p   ;
+  // extract the parameters
+  int parmCount = 0;
+  for (parmCount = 0;; parmCount ++)
+  {
+    int l = p2 -> lData;
+    if ( l < 0) break;
+    p2 ++;
+  }
+  if (parmCount <  2 )  // parms 0,1,2
+  {
+   printf("3 parms are required ... command stem option (%i)\n",
+   parmCount);
+   return 8;
+  }
+  p2 = p   ;
+  char * req = "Unknown";
+  if (parmCount > 0)
+  {
+    if (p2 -> lData >= 2 && memcmp(p2 -> data,"QR",2) == 0)
+    {
+      req = "QR";
+    }
+    if (strcmp(req,"Unknown")== 0)
+    {
+      printf("Unknown request \n");
+      return 8;
+    }
+  }
+  // create the stem variable value
+  char * stem;
+  p2 ++;
+  if (parmCount > 1)
+  {
+    stem = makeString(p2 -> data, p2-> lData);
+    printf("Stem is %s\n",stem);
+  }
+
+  p2 ++; // 3rd
+  if (parmCount > 2)
+  {
+    int l = p2 -> lData;
+    if (l == 0 || l==24)
+    {
+      certId[0] = 24;  // preset the length
+      if (l ==0) certId[0] = 0; // set to null
+      else memcpy(certId+1,p2-> data,24);
+    }
+    else
+    {
+      printf("The certid must be '' or a 24 char value \n");
+      return 8;
+    }
+  }
+  p2 ++; // 3rd
+  // num entries
+  if (parmCount > 3)
+  {
+    numEntries = atoi(makeString(p2-> data, p2-> lData));
+  }
+  printf("Number of entries %i\n",numEntries);
+
+  p2 ++; // 4rd
+  // status
+  if (parmCount > 4)
+  {
+    status     = atoi(makeString(p2-> data, p2-> lData));
+  }
+  printf("Status: %i\n",status    );
+  ///////////////////////
+  // Now the main program
+  ///////////////////////
+  int safrc;
+  int racfrc;
+  int racfrs;
+  int alet = 0;
+  char work_area[1024];
+  memset(&work_area[0],0,1024);
+  int number_parameters = 5;
+  short int function_code = 0x0003 ; // QUERYREQS
+  struct   {
+    char length;
+    char value[16];
+  } log_string;
+  log_string.length = 16;
+  memcpy(&log_string.value,"ColinPaicezz",16);
+  int parmlist_version = 0;
+   struct {
+     char eyeCatcher[8];
+     int resultsListLen;
+     char * resultsList;
+     char * certId;
+     int numEntries;
+     int criteriaStatus;
+     int criteriaDays  ;
+     char * criteriaName;
+   } function_parmlist;
+   memcpy(&function_parmlist.eyeCatcher[0],"QUERYREQ",8);
+   int lResults = numEntries * 400;
+   function_parmlist.resultsListLen = lResults;
+   char * pResultsList = (char *) malloc(lResults);
+   if (pResultsList == 0 ) return 99;
+   function_parmlist.resultsList    = pResultsList;
+   function_parmlist.certId         =&certId[0];
+   function_parmlist.numEntries     = numEntries;
+   function_parmlist.criteriaStatus = status;
+   function_parmlist.criteriaDays   = 0;
+   function_parmlist.criteriaName   = 0;
+   char criteriaName[33];
+   criteriaName[0]=0;  //  set length to zero
+   int attributes = 0;
+   char CA_Domain[9];
+   CA_Domain[0]=0;// set length to 0
+  rc =IRRSPX00(&work_area,
+      & alet,& safrc,
+      & alet,& racfrc,
+      & alet,& racfrs,
+      & number_parameters,
+      & function_code,
+      & attributes,
+      & log_string,
+      & parmlist_version,
+      & function_parmlist,
+      & CA_Domain
+      );
+  char stemBuffer[1000];
+  char temp[1024];
+
+ // saf rc
+  sprintf(&temp[0],"%i\0",safrc);
+  sprintf(&stemBuffer[0],"%ssafrc\0",stem);
+  printf("%s.%s\n",stemBuffer,temp);
+  rc = CRexxPut(pEnv,stemBuffer,temp,0);
+
+  // RACF rc
+  sprintf(&temp[0],"%i\0",racfrc);
+  sprintf(&stemBuffer[0],"%sracfrc\0",stem);
+  printf("%s.%s\n",stemBuffer,temp);
+  rc = CRexxPut(pEnv,stemBuffer,temp,0);
+
+  // RACF rs
+  sprintf(&temp[0],"%i\0",racfrs);
+  sprintf(&stemBuffer[0],"%sracfrs\0",stem);
+  printf("%s.%s\n",stemBuffer,temp);
+  rc = CRexxPut(pEnv,stemBuffer,temp,0);
+
+  // rc
+  sprintf(&temp[0],"%i\0",rc    );
+  sprintf(&stemBuffer[0],"%src\0",stem);
+  printf("%s.%s\n",stemBuffer,temp);
+  rc = CRexxPut(pEnv,stemBuffer,temp,0);
+
+  // error
+//sprintf(&temp[0],"%i\0",rc    );
+  sprintf(&stemBuffer[0],"%serror\0",stem);
+// printf("%s.%s\n",stemBuffer,temp);
+  rc = CRexxPut(pEnv,stemBuffer,GetPKIRC(safrc,racfrc,racfrs),0);
+
+ if ( safrc != 0)
+ {
+   printf("%s\n",GetPKIRC(safrc,racfrc,racfrs));
+   return safrc;
+  }
+  printf("Returned size %i\n", function_parmlist.resultsListLen);
+  char * q = &function_parmlist.resultsList[0];
+  char * pEnd =
+        & function_parmlist.resultsList[
+           function_parmlist.resultsListLen
+          ];
+  char *  results[]=
+  {
+    "Cert id",
+    "Requestor's name",
+    "Subject DN",
+    "Issuer's DN",
+    "Validity",
+    "KeyUsage",
+    "Status",
+    "Creation Date",
+    "Last Modified Date",
+    "Appl Data",
+    "Serial",
+    "Previous Serial",
+    "ExtKeyUSage",
+    "Query time stamp",
+    "Number of approvals"
+  } ;
+  int k;
+  int approvers;
+  printf("Number of entries returned %i\n",
+          function_parmlist.numEntries);
+  for(k=0;k< function_parmlist.numEntries  ;k++)
+  {
+    if ( q >   pEnd ) break;
+    printf("=================\n");
+    for (i=0;i<15 ;i++) // iterator // 14 is approvers
+    {
+     if ( q >   pEnd ) break;
+     int l = * q;
+     q ++;  // past the length
+     if ( l > 0)
+     {
+       printf("%s :",results[i]);
+       printf("%*.*s\n",l,l,q);
+     }
+     if ( i == 14)
+     {
+       approvers = atoi(makeString(q   ,2));
+     }
+     q+=l;  // past the value
+    }
+    char * approverStatus[3]=
+    {
+      "Approver",
+      "Status",
+      "TimeStamp"
+    };
+    int sApprover = sizeof(approverStatus)/sizeof(approverStatus[0]);
+    printf("Approvers %i\n",approvers);
+    int a;
+    for ( a = 0; a<approvers;a++)
+    for (i=0;i < sApprover;i++)
+    {
+     int l = * q;
+     q ++;  // past the length
+     printf("%i %s %*.*s\n",a,approverStatus[i],l,l,q);
+     q+=l;  // past the value
+    }
+ } // for k
+  sprintf(&stemBuffer[0],"%srsn\0",stem);
+  rc = CRexxPut(pEnv,stemBuffer,"8888",0);
+
+   char * action;
+   if ( rc == 0) action = "replaced";
+   else if ( rc ==1 ) action = "added";
+  strcpy(&pEval -> evdata[0], "COLINRC");
+   pEval -> evlen = 7;
+   return  4;
+}
+///////
+// makeString
+//////
+char * makeString( char * p,int l ){
+  int ll = l;
+  if (ll < 0) ll = 0;  // no parameter? return null
+  char * c  = (char *) malloc(ll + 1); // + 1 for null
+  memcpy(c,p,ll);
+  c[ll]= 0;
+  return c;
+}
+#include <PKIRC>

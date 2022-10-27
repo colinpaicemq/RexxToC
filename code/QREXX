@@ -1,0 +1,10 @@
+/* REXX */
+trace r
+v =  CPQUERY("QR","P.","1+bySlG9Ug/c2TbK6o++++++",100,2);
+say v;
+say P.rc
+say P.rsn
+say P.safrc
+say P.racfrc
+say P.racfrs
+say P.error
